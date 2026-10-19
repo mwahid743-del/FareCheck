@@ -13,7 +13,6 @@ class FareCheckService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var overlay: OverlayController
     private lateinit var prefs: Prefs
-    private var current: App? = null
     private var pending = false
 
     override fun onServiceConnected() {
@@ -23,38 +22,36 @@ class FareCheckService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(e: AccessibilityEvent?) {
-        val pkg = e?.packageName?.toString() ?: return
-        val app = App.byPackage(pkg)
-        if (app == null) {
-            if (pkg != packageName) { current = null; overlay.hide() }
-            return
-        }
-        current = app
+        if (e?.packageName?.toString() == packageName) return
         if (!pending) {
             pending = true
-            handler.postDelayed({ pending = false; process() }, 150)
-        }
-    }
-
-    private fun findRoot(app: App): AccessibilityNodeInfo? {
-        rootInActiveWindow?.let { if (it.packageName?.toString() == app.pkg) return it }
-        return windows.firstNotNullOfOrNull { w ->
-            w.root?.takeIf { it.packageName?.toString() == app.pkg }
+            handler.postDelayed({ pending = false; process() }, 200)
         }
     }
 
     private fun process() {
-        val app = current ?: return
-        val root = findRoot(app) ?: return
-        val lines = ArrayList<Line>()
-        collect(root, lines)
-        Log.d("FareCheck", "${app.name}: ${lines.joinToString(" | ") { it.text }.take(400)}")
-        if (lines.isEmpty()) {
-            overlay.show(Verdict(Level.MAYBE, "FareCheck: ${app.name} text hidden"))
-            return
+        val roots = ArrayList<AccessibilityNodeInfo>()
+        val ws = windows
+        if (ws.isNullOrEmpty()) {
+            rootInActiveWindow?.let { roots.add(it) }
+        } else {
+            for (w in ws) w.root?.let { roots.add(it) }
         }
-        val offer = OfferParser.parse(app, lines)
-        if (offer == null) overlay.hide() else overlay.show(Verdicts.evaluate(offer, prefs))
+        val byApp = LinkedHashMap<App, MutableList<Line>>()
+        for (r in roots) {
+            val pkg = r.packageName?.toString() ?: continue
+            val app = App.byPackage(pkg) ?: continue
+            collect(r, byApp.getOrPut(app) { ArrayList() })
+        }
+        for ((app, lines) in byApp) {
+            Log.d("FareCheck", "${app.name}: ${lines.joinToString(" | ") { it.text }.take(400)}")
+            val offer = OfferParser.parse(app, lines)
+            if (offer != null) {
+                overlay.show(Verdicts.evaluate(offer, prefs))
+                return
+            }
+        }
+        overlay.hide()
     }
 
     private fun collect(n: AccessibilityNodeInfo?, out: MutableList<Line>) {
