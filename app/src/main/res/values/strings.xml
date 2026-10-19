@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">FareCheck</string>
+    <string name="service_label">FareCheck</string>
+    <string name="service_description">Reads job offers in Uber, Bolt, Deliveroo and Just Eat and shows an accept/decline hint. Display only; it never taps anything.</string>
+</resources>
