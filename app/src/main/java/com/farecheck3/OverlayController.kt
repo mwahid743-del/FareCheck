@@ -1,42 +1,72 @@
 package com.farecheck
 
 import android.accessibilityservice.AccessibilityService
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
+import android.graphics.Color
 import android.view.Gravity
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.widget.TextView
 
 class OverlayController(private val svc: AccessibilityService) {
     private val wm = svc.getSystemService(WindowManager::class.java)
-    private var view: TextView? = null
+    private var box: LinearLayout? = null
+    private var t1: TextView? = null
+    private var t2: TextView? = null
+
+    var showing = false
+        private set
+
     private fun dp(v: Int) = (v * svc.resources.displayMetrics.density).toInt()
 
+    private fun line(): TextView = TextView(svc).apply {
+        setTextColor(Color.WHITE)
+        setTypeface(null, Typeface.BOLD)
+        gravity = Gravity.CENTER
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+    }
+
     fun show(v: Verdict) {
-        val tv = view ?: TextView(svc).apply {
-            textSize = 20f
-            setTextColor(Color.WHITE)
-            setTypeface(null, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-        }.also {
-            view = it
-            wm.addView(it, params())
+        if (box == null) {
+            val a = line()
+            val b = line()
+            val l = LinearLayout(svc).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                addView(a)
+                addView(b)
+            }
+            t1 = a
+            t2 = b
+            box = l
+            wm.addView(l, params())
         }
-        tv.text = v.text
-        tv.setBackgroundColor(
+        t1?.text = v.line1
+        t1?.textSize = v.size1
+        t2?.text = v.line2
+        t2?.textSize = v.size2
+        box?.setBackgroundColor(
             when (v.level) {
                 Level.ACCEPT -> 0xEE2E7D32.toInt()
                 Level.MAYBE -> 0xEEEF6C00.toInt()
                 Level.DECLINE -> 0xEEC62828.toInt()
+                Level.UNKNOWN -> 0xEE455A64.toInt()
             }
         )
+        showing = true
     }
 
     fun hide() {
-        view?.let { runCatching { wm.removeView(it) } }
-        view = null
+        box?.let { runCatching { wm.removeView(it) } }
+        box = null
+        t1 = null
+        t2 = null
+        showing = false
     }
 
     private fun params() = WindowManager.LayoutParams(

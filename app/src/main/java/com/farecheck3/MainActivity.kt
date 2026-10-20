@@ -36,6 +36,7 @@ class MainActivity : Activity() {
         val hourly = field("Target £ per hour (Uber / Bolt)", prefs.targetHourly)
         val rideMile = field("Min £ per mile (Uber / Bolt)", prefs.minRidePerMile)
         val delMile = field("Min £ per mile (Just Eat / Deliveroo)", prefs.minDeliveryPerMile)
+        val road = field("Deliveroo road factor (straight-line miles x this)", prefs.roadFactor)
 
         root.addView(Button(this).apply {
             text = "Save"
@@ -43,6 +44,7 @@ class MainActivity : Activity() {
                 prefs.targetHourly = hourly.text.toString().toDoubleOrNull() ?: prefs.targetHourly
                 prefs.minRidePerMile = rideMile.text.toString().toDoubleOrNull() ?: prefs.minRidePerMile
                 prefs.minDeliveryPerMile = delMile.text.toString().toDoubleOrNull() ?: prefs.minDeliveryPerMile
+                prefs.roadFactor = road.text.toString().toDoubleOrNull() ?: prefs.roadFactor
                 Toast.makeText(this@MainActivity, "Saved", Toast.LENGTH_SHORT).show()
             }
         })
@@ -53,7 +55,8 @@ class MainActivity : Activity() {
         root.addView(TextView(this).apply {
             setPadding(0, pad, 0, 0)
             text = "Enable FareCheck under Installed apps. If it is greyed out: Settings > Apps > FareCheck > ⋮ > " +
-                "Allow restricted settings. Also set battery to Unrestricted / Never sleeping apps."
+                "Allow restricted settings. Also set battery to Unrestricted / Never sleeping apps. " +
+                "Deliveroo miles are an estimate."
         })
         setContentView(ScrollView(this).apply { addView(root) })
     }

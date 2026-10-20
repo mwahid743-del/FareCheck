@@ -8,6 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: app/src/main/assets/postcodes.bin
+          key: postcodes-${{ hashFiles('tools/build_postcodes.py') }}
+      - run: python3 tools/build_postcodes.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

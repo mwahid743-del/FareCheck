@@ -16,4 +16,8 @@ class Prefs(ctx: Context) {
     var minDeliveryPerMile: Double
         get() = sp.getFloat("delMile", 2.0f).toDouble()
         set(v) = sp.edit().putFloat("delMile", v.toFloat()).apply()
+
+    var roadFactor: Double
+        get() = sp.getFloat("road", 1.4f).toDouble()
+        set(v) = sp.edit().putFloat("road", v.toFloat()).apply()
 }
