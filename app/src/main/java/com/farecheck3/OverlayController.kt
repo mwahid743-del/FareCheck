@@ -5,11 +5,11 @@ import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -36,11 +36,15 @@ class OverlayController(private val svc: AccessibilityService) {
         )
     }
 
-    private fun fit(t: TextView, text: String, maxSp: Float) {
-        t.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
-        t.maxLines = 1
+    private fun fit(t: TextView, text: String, maxSp: Float, reserve: Int) {
         t.text = text
-        t.setAutoSizeTextTypeUniformWithConfiguration(12, maxSp.toInt(), 1, TypedValue.COMPLEX_UNIT_SP)
+        var sp = maxSp
+        t.textSize = sp
+        val avail = svc.resources.displayMetrics.widthPixels - dp(28) - reserve
+        while (sp > 12f && t.paint.measureText(text) > avail) {
+            sp -= 1f
+            t.textSize = sp
+        }
     }
 
     private fun chip(c: Chip, size: Float): TextView = TextView(svc).apply {
@@ -62,22 +66,39 @@ class OverlayController(private val svc: AccessibilityService) {
             val row = LinearLayout(svc).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(
+                layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 )
             }
-            val c = line().apply {
-                gravity = Gravity.END
-                setPadding(0, dp(2), dp(2), 0)
+            b.layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            val c = TextView(svc).apply {
+                setTextColor(Color.WHITE)
+                setTypeface(null, Typeface.BOLD)
+                textSize = 18f
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.END or Gravity.CENTER_VERTICAL
+                )
             }
-            val l = LinearLayout(svc).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(8), dp(12), dp(6))
-                addView(a)
+            val second = FrameLayout(svc).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
                 addView(row)
                 addView(b)
                 addView(c)
+            }
+            val l = LinearLayout(svc).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(8), dp(6), dp(8))
+                addView(a)
+                addView(second)
             }
             t1 = a
             t2 = b
@@ -86,7 +107,19 @@ class OverlayController(private val svc: AccessibilityService) {
             box = l
             wm.addView(l, params())
         }
-        t1?.let { fit(it, v.line1, v.size1) }
+        val hasPc = !v.postcode.isNullOrBlank()
+        var reserve = 0
+        t3?.let {
+            if (hasPc) {
+                it.text = v.postcode
+                it.textSize = 18f
+                it.visibility = View.VISIBLE
+                reserve = 2 * (it.paint.measureText(v.postcode.orEmpty()) + dp(8)).toInt()
+            } else {
+                it.visibility = View.GONE
+            }
+        }
+        t1?.let { fit(it, v.line1, v.size1, 0) }
         if (v.chips.isNotEmpty()) {
             t2?.visibility = View.GONE
             chipRow?.let { row ->
@@ -107,16 +140,7 @@ class OverlayController(private val svc: AccessibilityService) {
             chipRow?.visibility = View.GONE
             chipRow?.removeAllViews()
             t2?.visibility = View.VISIBLE
-            t2?.let { fit(it, v.line2, v.size2) }
-        }
-        t3?.let {
-            if (v.postcode.isNullOrBlank()) {
-                it.visibility = View.GONE
-            } else {
-                it.visibility = View.VISIBLE
-                it.text = v.postcode
-                it.textSize = 18f
-            }
+            t2?.let { fit(it, v.line2, v.size2, reserve) }
         }
         box?.setBackgroundColor(
             when (v.level) {
