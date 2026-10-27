@@ -4,7 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
@@ -15,6 +18,8 @@ class OverlayController(private val svc: AccessibilityService) {
     private var box: LinearLayout? = null
     private var t1: TextView? = null
     private var t2: TextView? = null
+    private var chipRow: LinearLayout? = null
+    private var t3: TextView? = null
 
     var showing = false
         private set
@@ -31,25 +36,88 @@ class OverlayController(private val svc: AccessibilityService) {
         )
     }
 
+    private fun fit(t: TextView, text: String, maxSp: Float) {
+        t.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
+        t.maxLines = 1
+        t.text = text
+        t.setAutoSizeTextTypeUniformWithConfiguration(12, maxSp.toInt(), 1, TypedValue.COMPLEX_UNIT_SP)
+    }
+
+    private fun chip(c: Chip, size: Float): TextView = TextView(svc).apply {
+        text = c.text
+        textSize = size
+        setTypeface(null, Typeface.BOLD)
+        setTextColor(if (c.good) 0xFF7CFFA0.toInt() else 0xFFFF9A94.toInt())
+        setPadding(dp(8), dp(1), dp(8), dp(1))
+        background = GradientDrawable().apply {
+            setColor(0x66000000)
+            cornerRadius = dp(6).toFloat()
+        }
+    }
+
     fun show(v: Verdict) {
         if (box == null) {
             val a = line()
             val b = line()
+            val row = LinearLayout(svc).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+            val c = line().apply {
+                gravity = Gravity.END
+                setPadding(0, dp(2), dp(2), 0)
+            }
             val l = LinearLayout(svc).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(8), dp(12), dp(8))
+                setPadding(dp(12), dp(8), dp(12), dp(6))
                 addView(a)
+                addView(row)
                 addView(b)
+                addView(c)
             }
             t1 = a
             t2 = b
+            chipRow = row
+            t3 = c
             box = l
             wm.addView(l, params())
         }
-        t1?.text = v.line1
-        t1?.textSize = v.size1
-        t2?.text = v.line2
-        t2?.textSize = v.size2
+        t1?.let { fit(it, v.line1, v.size1) }
+        if (v.chips.isNotEmpty()) {
+            t2?.visibility = View.GONE
+            chipRow?.let { row ->
+                row.removeAllViews()
+                row.visibility = View.VISIBLE
+                v.chips.forEachIndexed { i, ch ->
+                    val tv = chip(ch, v.size2)
+                    if (i > 0) {
+                        tv.layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        ).apply { leftMargin = dp(12) }
+                    }
+                    row.addView(tv)
+                }
+            }
+        } else {
+            chipRow?.visibility = View.GONE
+            chipRow?.removeAllViews()
+            t2?.visibility = View.VISIBLE
+            t2?.let { fit(it, v.line2, v.size2) }
+        }
+        t3?.let {
+            if (v.postcode.isNullOrBlank()) {
+                it.visibility = View.GONE
+            } else {
+                it.visibility = View.VISIBLE
+                it.text = v.postcode
+                it.textSize = 18f
+            }
+        }
         box?.setBackgroundColor(
             when (v.level) {
                 Level.ACCEPT -> 0xEE2E7D32.toInt()
@@ -66,6 +134,8 @@ class OverlayController(private val svc: AccessibilityService) {
         box = null
         t1 = null
         t2 = null
+        chipRow = null
+        t3 = null
         showing = false
     }
 

@@ -13,6 +13,15 @@ object OfferParser {
     private val postcode = Regex("""\b([A-Z]{1,2}\d[A-Z\d]?)\s?(\d[A-Z]{2})\b""")
     private val pickup = Regex("""^\d+\s+pickups?:\s*(.+)$""", RegexOption.IGNORE_CASE)
     private val gate = Regex("""accept|match|confirm""", RegexOption.IGNORE_CASE)
+    private val fromDest = Regex("""from destination""", RegexOption.IGNORE_CASE)
+    private val ageRe = Regex("""age[\s-]*restricted|alcohol\W{0,4}age\s*18|\bid\s+check\b""", RegexOption.IGNORE_CASE)
+
+    private fun dropPostcode(lines: List<Line>): String? {
+        val sorted = lines.sortedWith(compareBy({ it.top }, { it.left }))
+        return sorted.asSequence()
+            .flatMap { l -> postcode.findAll(l.text).map { it.groupValues[1] } }
+            .lastOrNull()
+    }
 
     private fun pickPrice(lines: List<Line>): Double? {
         val big = lines
@@ -30,18 +39,20 @@ object OfferParser {
         if (!gate.containsMatchIn(all)) return null
         val price = pickPrice(lines) ?: return null
         val stops = stopsRe.find(all)?.groupValues?.get(1)?.toIntOrNull()
+        val drop = dropPostcode(lines)
 
         if (app.kind == Kind.RIDE) {
-            val m = miles.findAll(all).mapNotNull { it.groupValues[1].toDoubleOrNull() }.sum()
+            val rideText = lines.map { it.text }.filterNot { fromDest.containsMatchIn(it) }.joinToString("\n")
+            val m = miles.findAll(rideText).mapNotNull { it.groupValues[1].toDoubleOrNull() }.sum()
             if (m <= 0.0) return null
-            val t = mins.findAll(all).mapNotNull { it.groupValues[1].toDoubleOrNull() }.sum()
-            return Offer(app, price, m, if (t > 0) t else null, null, null, false)
+            val t = mins.findAll(rideText).mapNotNull { it.groupValues[1].toDoubleOrNull() }.sum()
+            return Offer(app, price, m, if (t > 0) t else null, null, null, false, drop)
         }
 
         if (app == App.JUST_EAT) {
             val mi = miles.find(all)?.groupValues?.get(1)?.toDoubleOrNull() ?: return null
             val shop = lines.firstNotNullOfOrNull { pickup.find(it.text.trim())?.groupValues?.get(1)?.trim() }
-            return Offer(app, price, mi, null, stops, shop, false)
+            return Offer(app, price, mi, null, stops, shop, false, drop, ageRe.containsMatchIn(all))
         }
 
         val sorted = lines.sortedWith(compareBy({ it.top }, { it.left }))
@@ -52,6 +63,6 @@ object OfferParser {
         val shop = pcIdx.firstOrNull()?.let { sorted.getOrNull(it - 1)?.text?.trim() }
             ?.takeIf { it.isNotEmpty() && !postcode.containsMatchIn(it) && !lead.containsMatchIn(it) }
         val est = estimate(codes)
-        return Offer(app, price, est, null, stops, shop, true)
+        return Offer(app, price, est, null, stops, shop, true, drop, ageRe.containsMatchIn(all))
     }
 }

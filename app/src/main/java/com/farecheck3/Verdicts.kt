@@ -24,14 +24,13 @@ object Verdicts {
         if (hourly != null) ratios += ratio(hourly, p.targetHourly)
         val line1 = buildString {
             append(miles(mi)).append(" mi")
-            o.minutes?.let { append("   ").append(it.roundToInt()).append(" min") }
             append("   ").append(money(o.price))
+            o.minutes?.let { append("   ").append(it.roundToInt()).append(" min") }
         }
-        val line2 = buildString {
-            append(money(perMile)).append("/mi")
-            hourly?.let { append("   ").append(money(it)).append("/h") }
-        }
-        return Verdict(level(ratios.min()), line1, line2, 22f, 13f)
+        val chips = mutableListOf(Chip(money(perMile) + "/mi", perMile >= p.minRidePerMile))
+        hourly?.let { chips += Chip(money(it) + "/h", it >= p.targetHourly) }
+        val line2 = chips.joinToString("   ") { it.text }
+        return Verdict(level(ratios.min()), line1, line2, 22f, 14f, o.postcode, chips)
     }
 
     private fun delivery(o: Offer, p: Prefs): Verdict {
@@ -44,8 +43,11 @@ object Verdicts {
             else -> miles(mi) + " mi"
         }
         val line2 = listOfNotNull(money(o.price), milesText, stopsText).joinToString(" · ")
+        if (o.ageRestricted) {
+            return Verdict(Level.DECLINE, "AGE RESTRICTED - DECLINE", line2, 22f, 22f, o.postcode)
+        }
         val lvl = if (mi == null || mi <= 0.0) Level.UNKNOWN
         else level(ratio(o.price / mi, p.minDeliveryPerMile))
-        return Verdict(lvl, shop, line2, 17f, 16f)
+        return Verdict(lvl, shop, line2, 22f, 22f, o.postcode)
     }
 }

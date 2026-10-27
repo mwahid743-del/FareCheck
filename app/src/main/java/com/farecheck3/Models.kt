@@ -30,9 +30,21 @@ data class Offer(
     val minutes: Double?,
     val stops: Int?,
     val shop: String?,
-    val estimated: Boolean
+    val estimated: Boolean,
+    val postcode: String? = null,
+    val ageRestricted: Boolean = false
 )
 
 enum class Level { ACCEPT, MAYBE, DECLINE, UNKNOWN }
 
-data class Verdict(val level: Level, val line1: String, val line2: String, val size1: Float, val size2: Float)
+data class Chip(val text: String, val good: Boolean)
+
+data class Verdict(
+    val level: Level,
+    val line1: String,
+    val line2: String,
+    val size1: Float,
+    val size2: Float,
+    val postcode: String? = null,
+    val chips: List<Chip> = emptyList()
+)
