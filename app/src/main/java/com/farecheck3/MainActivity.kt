@@ -11,8 +11,32 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.view.View
 
 class MainActivity : Activity() {
+    private var status: TextView? = null
+
+    private fun refresh() {
+        val on = (Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: "")
+            .contains(packageName)
+        fun g(k: String) = Diag.get(this, k)
+        status?.text = "STATUS\n" +
+            "Enabled in system: " + on + "\n" +
+            "Service created: " + g("created") + "\n" +
+            "Service connected: " + g("connected") + "\n" +
+            "Start error: " + g("startErr") + "\n" +
+            "Last crash: " + g("crash") + "\n" +
+            "Last error: " + g("err") + "\n" +
+            "Apps seen: " + g("seen") + "\n" +
+            "Offer: " + g("offer") + "\n" +
+            "Plan: " + g("plan")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refresh()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = Prefs(this)
@@ -32,6 +56,13 @@ class MainActivity : Activity() {
             root.addView(e)
             return e
         }
+
+        status = TextView(this).apply { textSize = 12f; setTextIsSelectable(true) }
+        root.addView(status)
+        root.addView(Button(this).apply {
+            text = "Refresh status"
+            setOnClickListener { refresh() }
+        })
 
         val hourly = field("Target £ per hour (Uber / Bolt)", prefs.targetHourly)
         val rideMile = field("Min £ per mile (Uber / Bolt)", prefs.minRidePerMile)
