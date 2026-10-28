@@ -22,13 +22,14 @@ data class Spec(val text: String, val sp: Float, val color: Int, val chip: Boole
  */
 object Layout {
     const val MIN_SP = 12f
-    const val PAD_X = 10f
-    const val PAD_Y = 5f
+    const val PAD_X = 5f
+    const val PAD_Y = 4f
     const val GAP = 10f
-    const val CHIP_PAD = 7f
+    const val PART_GAP = 5f
+    const val CHIP_PAD = 5f
     const val ROW_H = 1.3f
     const val ROW_GAP = 2f
-    const val MARGIN = 10f
+    const val MARGIN = 3f
 
     val WHITE = 0xFFFFFFFF.toInt()
     private val CHIP_GOOD = 0xFF7CFFA0.toInt()
@@ -114,7 +115,7 @@ object Layout {
         var w = 0f
         var h = 0f
         row.forEachIndexed { i, s ->
-            if (i > 0) w += GAP * d
+            if (i > 0) w += PART_GAP * d
             w += partW(s, k, d, m)
             h = max(h, max(s.sp * k, MIN_SP) * d * ROW_H)
         }
@@ -177,8 +178,8 @@ object Layout {
         when (app) {
             App.UBER, App.BOLT -> {
                 val uber = app == App.UBER
-                val infoSp = if (uber) 23f else 16f
-                val chipSp = if (uber) 17f else 13f
+                val infoSp = 27f // Uber and Bolt share the same sizes
+                val chipSp = 13f
                 val pcSp = if (uber) 30f else 24f
                 // info box: right of the end of the price text (Bolt: the wrapped "pay)" row)
                 val price = OfferParser.priceLine(lines)
@@ -258,16 +259,15 @@ object Layout {
         return Plan(card, outline, boxes)
     }
 
-    /** Fit in the slot [left, right]; if it will not, right-align over the text (never hide). */
+    /** Largest size that fits the slot [left, right], right-aligned to the card edge; if nothing fits, overlap the text (never hide). */
     private fun placeFlex(
         rows: List<List<Spec>>, left: Int, right: Int, cy: Int,
         card: Bounds, bg: Int, d: Float, m: Measure, sh: Int
     ): Box {
         val k = fitScale(listOf(rows), right - left, d, m)
-        if (k != null) return build(rows, k, d, m, bg, left, cy, sh)
-        val k2 = fitScale(listOf(rows), (card.w * 0.6f).toInt(), d, m) ?: 0.01f
-        val (w, _) = boxSize(rows, k2, d, m)
-        return build(rows, k2, d, m, bg, max(card.l, right - w), cy, sh)
+            ?: fitScale(listOf(rows), (card.w * 0.6f).toInt(), d, m) ?: 0.01f
+        val (w, _) = boxSize(rows, k, d, m)
+        return build(rows, k, d, m, bg, max(card.l, right - w), cy, sh)
     }
 
     /** Drop-off postcode district, right-aligned and level with the anchor row; always shown. */

@@ -97,21 +97,21 @@ private class PlanView(ctx: Context, private val d: Float) : View(ctx) {
         for (b in p.boxes) {
             fill.color = b.bg
             val rect = RectF(b.rect.l.toFloat(), b.rect.t.toFloat(), b.rect.r.toFloat(), b.rect.b.toFloat())
-            c.drawRoundRect(rect, 10f * d, 10f * d, fill)
+            c.drawRoundRect(rect, 8f * d, 8f * d, fill)
             var y = rect.top + Layout.PAD_Y * d
             for (row in b.rows) {
                 var rw = 0f
                 var rh = 0f
                 row.parts.forEachIndexed { i, part ->
                     text.textSize = part.px
-                    if (i > 0) rw += Layout.GAP * d
+                    if (i > 0) rw += Layout.PART_GAP * d
                     rw += text.measureText(part.text) + if (part.chip) 2 * Layout.CHIP_PAD * d else 0f
                     rh = maxOf(rh, part.px * Layout.ROW_H)
                 }
                 var x = rect.left + (rect.width() - rw) / 2
                 for ((i, part) in row.parts.withIndex()) {
                     text.textSize = part.px
-                    if (i > 0) x += Layout.GAP * d
+                    if (i > 0) x += Layout.PART_GAP * d
                     val tw = text.measureText(part.text)
                     val base = y + rh / 2 - (text.ascent() + text.descent()) / 2
                     if (part.chip) {
@@ -119,7 +119,7 @@ private class PlanView(ctx: Context, private val d: Float) : View(ctx) {
                         val ch = part.px * 1.2f
                         c.drawRoundRect(
                             RectF(x, y + rh / 2 - ch / 2, x + tw + 2 * Layout.CHIP_PAD * d, y + rh / 2 + ch / 2),
-                            6f * d, 6f * d, fill
+                            5f * d, 5f * d, fill
                         )
                         text.color = part.color
                         c.drawText(part.text, x + Layout.CHIP_PAD * d, base, text)
