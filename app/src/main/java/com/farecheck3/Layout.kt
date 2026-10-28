@@ -9,8 +9,8 @@ fun interface Measure { fun width(text: String, px: Float): Float }
 /** One piece of text in a box row. px is final pixel size. */
 data class Part(val text: String, val px: Float, val color: Int, val chip: Boolean = false)
 data class Row(val parts: List<Part>)
-data class Box(val rect: R, val bg: Int, val rows: List<Row>)
-data class Plan(val outline: R?, val outlineColor: Int, val boxes: List<Box>)
+data class Box(val rect: Bounds, val bg: Int, val rows: List<Row>)
+data class Plan(val outline: Bounds?, val outlineColor: Int, val boxes: List<Box>)
 
 /** Wanted text: size in dp-like units before shrinking. */
 data class Spec(val text: String, val sp: Float, val color: Int, val chip: Boolean = false)
@@ -69,18 +69,18 @@ object Layout {
 
     // ---------- card rectangle ----------
 
-    fun cardRect(lines: List<Line>, win: R?, sw: Int, sh: Int, d: Float): R? {
+    fun cardRect(lines: List<Line>, win: Bounds?, sw: Int, sh: Int, d: Float): Bounds? {
         val pad = (6 * d).toInt()
-        val base: R? =
+        val base: Bounds? =
             if (win != null && win.h < sh * 0.92f && win.w > sw * 0.5f) win
             else {
                 val ls = lines.filter { it.right > it.left && it.bottom > it.top }
                 if (ls.isEmpty()) null
-                else R(ls.minOf { it.left }, ls.minOf { it.top }, ls.maxOf { it.right }, ls.maxOf { it.bottom })
+                else Bounds(ls.minOf { it.left }, ls.minOf { it.top }, ls.maxOf { it.right }, ls.maxOf { it.bottom })
             }
         base ?: return null
         val edge = (3 * d).toInt()
-        val r = R(max(edge, base.l - pad), max(edge, base.t - pad), min(sw - edge, base.r + pad), min(sh - edge, base.b + pad))
+        val r = Bounds(max(edge, base.l - pad), max(edge, base.t - pad), min(sw - edge, base.r + pad), min(sh - edge, base.b + pad))
         return if (r.w > 0 && r.h > 0) r else null
     }
 
@@ -136,7 +136,7 @@ object Layout {
         val out = rows.map { r ->
             Row(r.map { s -> Part(s.text, max(s.sp * k, MIN_SP) * d, s.color, s.chip) })
         }
-        return Box(R(left, top, left + w, top + h), bg, out)
+        return Box(Bounds(left, top, left + w, top + h), bg, out)
     }
 
     private fun chipSpecs(v: Verdict, sp: Float): List<Spec> =
@@ -145,7 +145,7 @@ object Layout {
     // ---------- the plan ----------
 
     fun plan(
-        app: App, v: Verdict, lines: List<Line>, win: R?,
+        app: App, v: Verdict, lines: List<Line>, win: Bounds?,
         sw: Int, sh: Int, d: Float, m: Measure
     ): Plan? {
         val card = cardRect(lines, win, sw, sh, d) ?: return null
@@ -238,7 +238,7 @@ object Layout {
     /** Drop-off postcode district, right-aligned on the destination address row (or the given anchor row). */
     private fun postcodeBox(
         lines: List<Line>, v: Verdict, sp: Float, bg: Int, right: Int, gap: Int,
-        d: Float, m: Measure, sh: Int, card: R, anchor: Line? = null
+        d: Float, m: Measure, sh: Int, card: Bounds, anchor: Line? = null
     ): Box? {
         val pc = v.postcode?.takeIf { it.isNotBlank() } ?: return null
         val row = anchor ?: OfferParser.dropLine(lines) ?: return null

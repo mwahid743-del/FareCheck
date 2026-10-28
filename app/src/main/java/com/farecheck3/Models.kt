@@ -39,7 +39,7 @@ enum class Level { ACCEPT, MAYBE, DECLINE, UNKNOWN }
 
 data class Chip(val text: String, val good: Boolean)
 
-data class R(val l: Int, val t: Int, val r: Int, val b: Int) {
+data class Bounds(val l: Int, val t: Int, val r: Int, val b: Int) {
     val w get() = r - l
     val h get() = b - t
 }

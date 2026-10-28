@@ -47,7 +47,7 @@ class FareCheckService : AccessibilityService() {
         }
     }
 
-    private class Win(val app: App, val rect: R, val lines: MutableList<Line> = ArrayList())
+    private class Win(val app: App, val rect: Bounds, val lines: MutableList<Line> = ArrayList())
 
     private var lastErr = 0L
 
@@ -74,7 +74,7 @@ class FareCheckService : AccessibilityService() {
                 val app = App.byPackage(r.packageName?.toString() ?: "")
                 if (app != null) {
                     val rc = Rect(); r.getBoundsInScreen(rc)
-                    wins.add(Win(app, R(rc.left, rc.top, rc.right, rc.bottom)).also { collect(r, it.lines) })
+                    wins.add(Win(app, Bounds(rc.left, rc.top, rc.right, rc.bottom)).also { collect(r, it.lines) })
                 }
             }
         } else {
@@ -82,7 +82,7 @@ class FareCheckService : AccessibilityService() {
                 val r = w.root ?: continue
                 val app = App.byPackage(r.packageName?.toString() ?: continue) ?: continue
                 val rc = Rect(); w.getBoundsInScreen(rc)
-                wins.add(Win(app, R(rc.left, rc.top, rc.right, rc.bottom)).also { collect(r, it.lines) })
+                wins.add(Win(app, Bounds(rc.left, rc.top, rc.right, rc.bottom)).also { collect(r, it.lines) })
             }
         }
         val byApp = LinkedHashMap<App, MutableList<Line>>()
