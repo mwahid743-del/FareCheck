@@ -17,12 +17,17 @@ class FareCheckService : AccessibilityService() {
     private val tick = Runnable { scheduled = false; process() }
 
     override fun onServiceConnected() {
-        overlay = OverlayController(this)
-        prefs = Prefs(this)
-        Toast.makeText(this, "FareCheck is running", Toast.LENGTH_LONG).show()
+        try {
+            overlay = OverlayController(this)
+            prefs = Prefs(this)
+            Toast.makeText(this, "FareCheck is running", Toast.LENGTH_LONG).show()
+        } catch (t: Throwable) {
+            Toast.makeText(this, "FareCheck start error: " + t.javaClass.simpleName + ": " + t.message, Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onAccessibilityEvent(e: AccessibilityEvent?) {
+        if (!::overlay.isInitialized || !::prefs.isInitialized) return
         val pkg = e?.packageName?.toString() ?: return
         if (App.byPackage(pkg) == null) return
         schedule(200)
@@ -37,7 +42,23 @@ class FareCheckService : AccessibilityService() {
 
     private class Win(val app: App, val rect: R, val lines: MutableList<Line> = ArrayList())
 
+    private var lastErr = 0L
+
     private fun process() {
+        try {
+            processInner()
+        } catch (t: Throwable) {
+            Log.e("FareCheck", "process failed", t)
+            runCatching { overlay.hide() }
+            val now = System.currentTimeMillis()
+            if (now - lastErr > 10000) {
+                lastErr = now
+                Toast.makeText(this, "FareCheck error: " + t.javaClass.simpleName + ": " + t.message, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun processInner() {
         val wins = ArrayList<Win>()
         val ws = windows
         if (ws.isNullOrEmpty()) {
