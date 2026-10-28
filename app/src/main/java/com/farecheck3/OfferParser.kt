@@ -38,6 +38,16 @@ object OfferParser {
         .filter { val t = it.text.trim(); lead.containsMatchIn(t) && !label.containsMatchIn(t) }
         .maxByOrNull { it.height }
 
+    /** First "7 min • 1.0 mi" row (the pickup leg): topmost row with minutes, ignoring "from destination". */
+    fun routeLine(lines: List<Line>): Line? =
+        lines.sortedWith(compareBy({ it.top }, { it.left })).firstOrNull {
+            mins.containsMatchIn(it.text) && !fromDest.containsMatchIn(it.text) &&
+                !it.text.contains('£') && !it.text.contains("est", ignoreCase = true)
+        }
+
+    /** Bolt: the "Jamal E • 4.9 ★ (14)" driver row. */
+    fun ratingLine(lines: List<Line>): Line? = lines.firstOrNull { it.text.contains('★') }
+
     /** Bolt: the wrapped row ending in "pay)" under the price, if present. */
     fun padLine(lines: List<Line>): Line? = lines.firstOrNull { padRe.containsMatchIn(it.text) }
 

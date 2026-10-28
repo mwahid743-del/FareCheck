@@ -70,18 +70,37 @@ object Layout {
     // ---------- card rectangle ----------
 
     fun cardRect(lines: List<Line>, win: Bounds?, sw: Int, sh: Int, d: Float): Bounds? {
-        val pad = (6 * d).toInt()
-        val base: Bounds? =
-            if (win != null && win.h < sh * 0.92f && win.w > sw * 0.5f) win
-            else {
-                val ls = lines.filter { it.right > it.left && it.bottom > it.top }
-                if (ls.isEmpty()) null
-                else Bounds(ls.minOf { it.left }, ls.minOf { it.top }, ls.maxOf { it.right }, ls.maxOf { it.bottom })
-            }
-        base ?: return null
         val edge = (3 * d).toInt()
-        val r = Bounds(max(edge, base.l - pad), max(edge, base.t - pad), min(sw - edge, base.r + pad), min(sh - edge, base.b + pad))
-        return if (r.w > 0 && r.h > 0) r else null
+        val floating = win != null && win.h < sh * 0.92f && win.w > sw * 0.5f
+        val r: Bounds? = if (floating) {
+            val pad = (6 * d).toInt()
+            Bounds(max(edge, win!!.l - pad), max(edge, win.t - pad), min(sw - edge, win.r + pad), min(sh - edge, win.b + pad))
+        } else cardFromLines(lines, sw, sh, d)
+        return if (r != null && r.w > 0 && r.h > 0) r else null
+    }
+
+    /** Full-screen app window: the card is the block from just above the price down to the drop-off address. */
+    private fun cardFromLines(lines: List<Line>, sw: Int, sh: Int, d: Float): Bounds? {
+        val ls = lines.filter { it.right > it.left && it.bottom > it.top }
+        if (ls.isEmpty()) return null
+        val edge = (3 * d).toInt()
+        val price = OfferParser.priceLine(ls)
+        val top: Int
+        val bottom: Int
+        if (price != null) {
+            val reach = min(price.height * 2.2f, 90 * d)
+            val near = ls.filter { it.top <= price.top && price.top - it.top <= reach }
+            top = (near.minOfOrNull { it.top } ?: price.top) - (10 * d).toInt()
+            val drop = OfferParser.dropLine(ls)
+            bottom = (drop?.bottom ?: ls.maxOf { it.bottom }) + (22 * d).toInt()
+        } else {
+            top = ls.minOf { it.top } - (6 * d).toInt()
+            bottom = ls.maxOf { it.bottom } + (6 * d).toInt()
+        }
+        val inside = ls.filter { it.top >= top && it.bottom <= bottom }
+        val minLeft = inside.minOfOrNull { it.left } ?: ls.minOf { it.left }
+        val l = max(edge, minLeft - (17 * d).toInt())
+        return Bounds(l, max(edge, top), sw - l, min(sh - edge, bottom))
     }
 
     // ---------- box building ----------
@@ -166,15 +185,16 @@ object Layout {
                 val anchor = if (uber) price else (OfferParser.padLine(lines) ?: price)
                 if (anchor != null && v.info != null) {
                     val e = extent(anchor, m)
-                    val left = e.endX + gap
                     val rows = listOf(
                         listOf(Spec(v.info, infoSp, WHITE)),
                         chipSpecs(v, chipSp)
                     ).filter { it.isNotEmpty() }
-                    val k = fitScale(listOf(rows), right - left, d, m)
-                    if (k != null) boxes += build(rows, k, d, m, bg, left, e.cy, sh)
+                    boxes += placeFlex(rows, e.endX + gap, right, e.cy, card, bg, d, m, sh)
                 }
-                postcodeBox(lines, v, pcSp, bg, right, gap, d, m, sh, card)?.let { boxes += it }
+                // postcode: top right, level with the pickup row (Uber) or the driver row (Bolt)
+                val pcRow = if (uber) OfferParser.routeLine(lines)
+                else (OfferParser.ratingLine(lines) ?: OfferParser.routeLine(lines))
+                postcodeBox(lines, v, pcSp, bg, right, d, m, sh, pcRow)?.let { boxes += it }
             }
 
             App.DELIVEROO -> {
@@ -192,16 +212,21 @@ object Layout {
                         b = v.postcode?.takeIf { it.isNotBlank() }?.let { listOf(listOf(Spec(it, 28f, WHITE))) }
                     }
                     val both = if (b != null) listOf(a, b) else listOf(a)
-                    var k = fitScale(both, right - left, d, m)
-                    var use = both
-                    if (k == null && b != null) {
-                        use = listOf(a)
-                        k = fitScale(use, right - left, d, m)
-                    }
+                    val k = fitScale(both, right - left, d, m)
                     if (k != null) {
                         var x = left
-                        for (rows in use) {
+                        for (rows in both) {
                             val box = build(rows, k, d, m, bg, x, e.cy, sh)
+                            boxes += box
+                            x = box.rect.r + gap
+                        }
+                    } else {
+                        // no room beside the price: right-align over the text instead
+                        val k2 = fitScale(both, (card.w * 0.9f).toInt(), d, m) ?: 0.01f
+                        val total = both.sumOf { boxSize(it, k2, d, m).first } + gap * (both.size - 1)
+                        var x = max(card.l, right - total)
+                        for (rows in both) {
+                            val box = build(rows, k2, d, m, bg, x, e.cy, sh)
                             boxes += box
                             x = box.rect.r + gap
                         }
@@ -220,13 +245,11 @@ object Layout {
                             listOf(Spec("DECLINE", 21f, WHITE))
                         )
                         // safety warning: allowed to use the whole card width
-                        val k = fitScale(listOf(rows), right - card.l - gap, d, m)
-                        if (k != null) {
-                            val (w, _) = boxSize(rows, k, d, m)
-                            boxes += build(rows, k, d, m, red, right - w, e.cy, sh)
-                        }
+                        val k = fitScale(listOf(rows), right - card.l - gap, d, m) ?: 0.01f
+                        val (w, _) = boxSize(rows, k, d, m)
+                        boxes += build(rows, k, d, m, red, right - w, e.cy, sh)
                     } else {
-                        postcodeBox(lines, v, 28f, bg, right, gap, d, m, sh, card, stat)?.let { boxes += it }
+                        postcodeBox(lines, v, 28f, bg, right, d, m, sh, stat)?.let { boxes += it }
                     }
                 }
             }
@@ -235,19 +258,28 @@ object Layout {
         return Plan(card, outline, boxes)
     }
 
-    /** Drop-off postcode district, right-aligned on the destination address row (or the given anchor row). */
+    /** Fit in the slot [left, right]; if it will not, right-align over the text (never hide). */
+    private fun placeFlex(
+        rows: List<List<Spec>>, left: Int, right: Int, cy: Int,
+        card: Bounds, bg: Int, d: Float, m: Measure, sh: Int
+    ): Box {
+        val k = fitScale(listOf(rows), right - left, d, m)
+        if (k != null) return build(rows, k, d, m, bg, left, cy, sh)
+        val k2 = fitScale(listOf(rows), (card.w * 0.6f).toInt(), d, m) ?: 0.01f
+        val (w, _) = boxSize(rows, k2, d, m)
+        return build(rows, k2, d, m, bg, max(card.l, right - w), cy, sh)
+    }
+
+    /** Drop-off postcode district, right-aligned and level with the anchor row; always shown. */
     private fun postcodeBox(
-        lines: List<Line>, v: Verdict, sp: Float, bg: Int, right: Int, gap: Int,
-        d: Float, m: Measure, sh: Int, card: Bounds, anchor: Line? = null
+        lines: List<Line>, v: Verdict, sp: Float, bg: Int, right: Int,
+        d: Float, m: Measure, sh: Int, anchor: Line?
     ): Box? {
         val pc = v.postcode?.takeIf { it.isNotBlank() } ?: return null
         val row = anchor ?: OfferParser.dropLine(lines) ?: return null
         val e = extent(row, m)
         val rows = listOf(listOf(Spec(pc, sp, WHITE)))
-        val minLeft = e.endX + gap
-        // anchored on the miles row (Just Eat): sits at the far right; on the address row: only in the free gap
-        val k = fitScale(listOf(rows), right - max(minLeft, card.l), d, m) ?: return null
-        val (w, _) = boxSize(rows, k, d, m)
-        return build(rows, k, d, m, bg, right - w, e.cy, sh)
+        val (w, _) = boxSize(rows, 1f, d, m)
+        return build(rows, 1f, d, m, bg, right - w, e.cy, sh)
     }
 }
