@@ -1,6 +1,13 @@
 package com.farecheck
 
-data class Line(val text: String, val height: Int, val top: Int, val left: Int)
+data class Line(
+    val text: String,
+    val height: Int,
+    val top: Int,
+    val left: Int,
+    val right: Int = left,
+    val bottom: Int = top + height
+)
 
 object OfferParser {
     private val lead = Regex("""^£\s?(\d+(?:\.\d{1,2})?)""")
@@ -16,17 +23,31 @@ object OfferParser {
     private val fromDest = Regex("""from destination""", RegexOption.IGNORE_CASE)
     private val ageRe = Regex("""age[\s-]*restricted|alcohol\W{0,4}age\s*18|\bid\s+check\b""", RegexOption.IGNORE_CASE)
 
-    private fun dropPostcode(lines: List<Line>): String? {
-        val sorted = lines.sortedWith(compareBy({ it.top }, { it.left }))
-        return sorted.asSequence()
-            .flatMap { l -> postcode.findAll(l.text).map { it.groupValues[1] } }
-            .lastOrNull()
-    }
+    private val padRe = Regex("""pay\)""", RegexOption.IGNORE_CASE)
+    private val statRe = Regex("""\d\s?(?:mi|miles?)\b""", RegexOption.IGNORE_CASE)
+
+    /** Last line (top to bottom) holding a postcode: the drop-off address row. */
+    fun dropLine(lines: List<Line>): Line? =
+        lines.sortedWith(compareBy({ it.top }, { it.left })).lastOrNull { postcode.containsMatchIn(it.text) }
+
+    private fun dropPostcode(lines: List<Line>): String? =
+        dropLine(lines)?.let { l -> postcode.findAll(l.text).lastOrNull()?.groupValues?.get(1) }
+
+    /** The big price line the verdict price is read from. */
+    fun priceLine(lines: List<Line>): Line? = lines
+        .filter { val t = it.text.trim(); lead.containsMatchIn(t) && !label.containsMatchIn(t) }
+        .maxByOrNull { it.height }
+
+    /** Bolt: the wrapped row ending in "pay)" under the price, if present. */
+    fun padLine(lines: List<Line>): Line? = lines.firstOrNull { padRe.containsMatchIn(it.text) }
+
+    /** Just Eat: the "2.6 mi · 2 stops" row. */
+    fun statLine(lines: List<Line>): Line? =
+        lines.filter { statRe.containsMatchIn(it.text) }
+            .let { c -> c.firstOrNull { stopsRe.containsMatchIn(it.text) } ?: c.firstOrNull() }
 
     private fun pickPrice(lines: List<Line>): Double? {
-        val big = lines
-            .filter { val t = it.text.trim(); lead.containsMatchIn(t) && !label.containsMatchIn(t) }
-            .maxByOrNull { it.height }
+        val big = priceLine(lines)
         big?.let { lead.find(it.text.trim())?.groupValues?.get(1)?.toDoubleOrNull() }?.let { return it }
         return lines.firstNotNullOfOrNull { l ->
             if (skip.containsMatchIn(l.text)) null

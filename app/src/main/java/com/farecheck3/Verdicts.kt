@@ -22,32 +22,26 @@ object Verdicts {
         val hourly = o.minutes?.takeIf { it > 0 }?.let { o.price / (it / 60.0) }
         val ratios = mutableListOf(ratio(perMile, p.minRidePerMile))
         if (hourly != null) ratios += ratio(hourly, p.targetHourly)
-        val line1 = buildString {
+        val info = buildString {
             append(miles(mi)).append(" mi")
-            append("   ").append(money(o.price))
-            o.minutes?.let { append("   ").append(it.roundToInt()).append(" min") }
+            o.minutes?.let { append(" · ").append(it.roundToInt()).append(" min") }
         }
         val chips = mutableListOf(Chip(money(perMile) + "/mi", perMile >= p.minRidePerMile))
         hourly?.let { chips += Chip(money(it) + "/h", it >= p.targetHourly) }
-        val line2 = chips.joinToString("   ") { it.text }
-        return Verdict(level(ratios.min()), line1, line2, 22f, 14f, o.postcode, chips)
+        return Verdict(level(ratios.min()), info, chips, o.postcode, false)
     }
 
     private fun delivery(o: Offer, p: Prefs): Verdict {
-        val shop = o.shop ?: o.app.label
-        val stopsText = o.stops?.let { if (it == 1) "1 stop" else "$it stops" }
         val mi = o.miles
-        val milesText = when {
-            mi == null -> "~? mi"
-            o.estimated -> "~" + miles(mi) + " mi"
-            else -> miles(mi) + " mi"
-        }
-        val line2 = listOfNotNull(money(o.price), milesText, stopsText).joinToString(" · ")
+        // Deliveroo shows an offline estimate (with ~); Just Eat shows its own miles, so no miles box.
+        val info = if (o.app == App.DELIVEROO) {
+            if (mi == null) "~? mi" else "~" + miles(mi) + " mi"
+        } else null
         if (o.ageRestricted) {
-            return Verdict(Level.DECLINE, "AGE RESTRICTED - DECLINE", line2, 22f, 22f, o.postcode)
+            return Verdict(Level.DECLINE, info, emptyList(), o.postcode, true)
         }
         val lvl = if (mi == null || mi <= 0.0) Level.UNKNOWN
         else level(ratio(o.price / mi, p.minDeliveryPerMile))
-        return Verdict(lvl, shop, line2, 22f, 22f, o.postcode)
+        return Verdict(lvl, info, emptyList(), o.postcode, false)
     }
 }

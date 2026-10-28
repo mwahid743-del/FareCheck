@@ -35,24 +35,41 @@ class FareCheckService : AccessibilityService() {
         }
     }
 
+    private class Win(val app: App, val rect: R, val lines: MutableList<Line> = ArrayList())
+
     private fun process() {
-        val roots = ArrayList<AccessibilityNodeInfo>()
+        val wins = ArrayList<Win>()
         val ws = windows
         if (ws.isNullOrEmpty()) {
-            rootInActiveWindow?.let { roots.add(it) }
+            rootInActiveWindow?.let { r ->
+                val app = App.byPackage(r.packageName?.toString() ?: "")
+                if (app != null) {
+                    val rc = Rect(); r.getBoundsInScreen(rc)
+                    wins.add(Win(app, R(rc.left, rc.top, rc.right, rc.bottom)).also { collect(r, it.lines) })
+                }
+            }
         } else {
-            for (w in ws) w.root?.let { roots.add(it) }
+            for (w in ws) {
+                val r = w.root ?: continue
+                val app = App.byPackage(r.packageName?.toString() ?: continue) ?: continue
+                val rc = Rect(); w.getBoundsInScreen(rc)
+                wins.add(Win(app, R(rc.left, rc.top, rc.right, rc.bottom)).also { collect(r, it.lines) })
+            }
         }
         val byApp = LinkedHashMap<App, MutableList<Line>>()
-        for (r in roots) {
-            val app = App.byPackage(r.packageName?.toString() ?: continue) ?: continue
-            collect(r, byApp.getOrPut(app) { ArrayList() })
-        }
+        for (w in wins) byApp.getOrPut(w.app) { ArrayList() }.addAll(w.lines)
+        val (sw, sh) = overlay.screenSize()
         for ((app, lines) in byApp) {
-            val offer = OfferParser.parse(app, lines, ::estimateMiles)
-            if (offer != null) {
-                Log.d("FareCheck", offer.toString())
-                overlay.show(Verdicts.evaluate(offer, prefs))
+            val offer = OfferParser.parse(app, lines, ::estimateMiles) ?: continue
+            Log.d("FareCheck", offer.toString())
+            val verdict = Verdicts.evaluate(offer, prefs)
+            // the window that holds the offer card (the one containing the price row)
+            val pl = OfferParser.priceLine(lines)
+            val win = wins.firstOrNull { it.app == app && pl != null && it.lines.contains(pl) }
+            val cardLines = win?.lines ?: lines
+            val plan = Layout.plan(app, verdict, cardLines, win?.rect, sw, sh, overlay.density, overlay.measure)
+            if (plan != null) {
+                overlay.show(plan)
                 schedule(700)
                 return
             }
@@ -78,7 +95,7 @@ class FareCheckService : AccessibilityService() {
         if (t != null) {
             val r = Rect()
             n.getBoundsInScreen(r)
-            out.add(Line(t, r.height(), r.top, r.left))
+            out.add(Line(t, r.height(), r.top, r.left, r.right, r.bottom))
         }
         for (i in 0 until n.childCount) collect(n.getChild(i), out)
     }

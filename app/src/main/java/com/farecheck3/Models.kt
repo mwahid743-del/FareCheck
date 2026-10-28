@@ -39,12 +39,16 @@ enum class Level { ACCEPT, MAYBE, DECLINE, UNKNOWN }
 
 data class Chip(val text: String, val good: Boolean)
 
+data class R(val l: Int, val t: Int, val r: Int, val b: Int) {
+    val w get() = r - l
+    val h get() = b - t
+}
+
+/** What to show: info text (miles/time), rate chips, drop-off postcode district, age flag. */
 data class Verdict(
     val level: Level,
-    val line1: String,
-    val line2: String,
-    val size1: Float,
-    val size2: Float,
-    val postcode: String? = null,
-    val chips: List<Chip> = emptyList()
+    val info: String?,
+    val chips: List<Chip>,
+    val postcode: String?,
+    val age: Boolean
 )
