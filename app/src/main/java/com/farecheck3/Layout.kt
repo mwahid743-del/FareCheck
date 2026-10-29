@@ -190,7 +190,9 @@ object Layout {
                         listOf(Spec(v.info, infoSp, WHITE)),
                         chipSpecs(v, chipSp)
                     ).filter { it.isNotEmpty() }
-                    boxes += placeFlex(rows, e.endX + gap, right, e.cy, card, bg, d, m, sh)
+                    // Uber must stay clear of the price, so it shrinks if needed; Bolt keeps the full size and may cover text
+                    boxes += if (uber) placeFlex(rows, e.endX + gap, right, e.cy, card, bg, d, m, sh)
+                    else placeFixed(rows, right, e.cy, card, bg, d, m, sh)
                 }
                 // postcode: top right, level with the pickup row (Uber) or the driver row (Bolt)
                 val pcRow = if (uber) OfferParser.routeLine(lines)
@@ -266,6 +268,16 @@ object Layout {
     ): Box {
         val k = fitScale(listOf(rows), right - left, d, m)
             ?: fitScale(listOf(rows), (card.w * 0.6f).toInt(), d, m) ?: 0.01f
+        val (w, _) = boxSize(rows, k, d, m)
+        return build(rows, k, d, m, bg, max(card.l, right - w), cy, sh)
+    }
+
+    /** Full nominal size, right-aligned to the card edge, level with cy; only shrinks if wider than the card. */
+    private fun placeFixed(
+        rows: List<List<Spec>>, right: Int, cy: Int,
+        card: Bounds, bg: Int, d: Float, m: Measure, sh: Int
+    ): Box {
+        val k = fitScale(listOf(rows), (card.w * 0.9f).toInt(), d, m) ?: 0.01f
         val (w, _) = boxSize(rows, k, d, m)
         return build(rows, k, d, m, bg, max(card.l, right - w), cy, sh)
     }
